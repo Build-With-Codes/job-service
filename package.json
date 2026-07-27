@@ -15,6 +15,7 @@
     "start:dev:worker": "npm run prisma:migrate:startup && ts-node -r tsconfig-paths/register src/worker.ts",
     "start:dev:scheduler": "ts-node -r tsconfig-paths/register src/scheduler.ts",
     "start:dev:all": "node scripts/start-dev-all.js",
+    "start:all": "node scripts/start-all.js",
     "dev:api": "ts-node -r tsconfig-paths/register src/api.ts",
     "dev:worker": "ts-node -r tsconfig-paths/register src/worker.ts",
     "dev:scheduler": "ts-node -r tsconfig-paths/register src/scheduler.ts",
