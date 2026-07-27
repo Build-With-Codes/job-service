@@ -9,7 +9,9 @@ const ALLOW_UNREACHABLE =
   process.argv.includes('--allow-unreachable') &&
   process.env.ALLOW_UNREACHABLE_MIGRATIONS === 'true';
 const REACHABILITY_ERROR_CODES = ['P1001', 'P1002'];
-const MIGRATION_TIMEOUT_MS = Number(process.env.DB_MIGRATION_TIMEOUT_MS ?? 60_000);
+const MIGRATION_TIMEOUT_MS = process.env.DB_MIGRATION_TIMEOUT_MS
+  ? Number(process.env.DB_MIGRATION_TIMEOUT_MS)
+  : undefined;
 
 const BASELINE_MIGRATIONS = [
   {
@@ -71,7 +73,7 @@ function runPrisma(args, options = {}) {
     },
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
-    timeout: MIGRATION_TIMEOUT_MS,
+    ...(MIGRATION_TIMEOUT_MS ? { timeout: MIGRATION_TIMEOUT_MS } : {}),
   });
 }
 
