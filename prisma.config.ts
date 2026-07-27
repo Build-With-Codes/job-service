@@ -5,7 +5,7 @@ function withSchema(raw: string | undefined) {
   if (!raw) return undefined;
   try {
     const url = new URL(raw);
-    url.searchParams.set('schema', url.searchParams.get('schema') || 'aiverse_jobs');
+    url.searchParams.set('schema', 'aiverse_jobs');
     return url.toString();
   } catch {
     return raw;
@@ -14,7 +14,7 @@ function withSchema(raw: string | undefined) {
 
 const isMigrationCommand = process.argv.some((arg) => arg.includes('migrate') || arg.includes('db'));
 const rawConnectionString = isMigrationCommand
-  ? (process.env.DIRECT_URL ?? process.env.DATABASE_URL)
+  ? (process.env.DIRECT_URL ?? process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL)
   : process.env.DATABASE_URL;
 
 if (!rawConnectionString) {

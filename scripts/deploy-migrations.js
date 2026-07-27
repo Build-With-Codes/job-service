@@ -9,6 +9,7 @@ const ALLOW_UNREACHABLE =
   process.argv.includes('--allow-unreachable') &&
   process.env.ALLOW_UNREACHABLE_MIGRATIONS === 'true';
 const REACHABILITY_ERROR_CODES = ['P1001', 'P1002'];
+const MIGRATION_TIMEOUT_MS = Number(process.env.DB_MIGRATION_TIMEOUT_MS ?? 60_000);
 
 const BASELINE_MIGRATIONS = [
   {
@@ -30,13 +31,17 @@ const BASELINE_MIGRATIONS = [
 
 function withSchema(raw) {
   if (!raw) return raw;
-  const url = new URL(raw);
-  url.searchParams.set('schema', SCHEMA_NAME);
-  return url.toString();
+  try {
+    const url = new URL(raw);
+    url.searchParams.set('schema', SCHEMA_NAME);
+    return url.toString();
+  } catch {
+    return raw;
+  }
 }
 
 function getDatabaseUrl() {
-  const raw = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+  const raw = process.env.DIRECT_URL ?? process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!raw) {
     throw new Error('DIRECT_URL or DATABASE_URL is required to deploy Prisma migrations.');
   }
@@ -44,6 +49,7 @@ function getDatabaseUrl() {
 }
 
 function runPrisma(args, options = {}) {
+  const migrationUrl = getDatabaseUrl();
   const command = path.join(
     process.cwd(),
     'node_modules',
@@ -58,9 +64,14 @@ function runPrisma(args, options = {}) {
 
   return spawnSync(spawnCommand, spawnArgs, {
     cwd: process.cwd(),
-    env: process.env,
+    env: {
+      ...process.env,
+      DATABASE_URL: withSchema(process.env.DATABASE_URL),
+      DIRECT_URL: migrationUrl,
+    },
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
+    timeout: MIGRATION_TIMEOUT_MS,
   });
 }
 
@@ -72,7 +83,12 @@ function assertSuccess(result, label) {
 }
 
 function isReachabilityError(output) {
-  return REACHABILITY_ERROR_CODES.some((code) => output.includes(code));
+  return (
+    REACHABILITY_ERROR_CODES.some((code) => output.includes(code)) ||
+    output.includes('ETIMEDOUT') ||
+    output.includes('ECONNREFUSED') ||
+    output.includes('ENOTFOUND')
+  );
 }
 
 function warnAndAllowUnreachable(output) {
@@ -141,8 +157,13 @@ async function main() {
   console.log(`Initiating ${SCHEMA_NAME} database deployment check cycle...`);
   const firstDeploy = runPrisma(['migrate', 'deploy'], { capture: true });
 
-  if (firstDeploy.error) throw firstDeploy.error;
   const output = `${firstDeploy.stdout ?? ''}${firstDeploy.stderr ?? ''}`;
+
+  if (firstDeploy.error) {
+    const errorOutput = `${output}\n${firstDeploy.error.code ?? ''} ${firstDeploy.error.message ?? ''}`;
+    if (warnAndAllowUnreachable(errorOutput)) return;
+    throw firstDeploy.error;
+  }
 
   if (firstDeploy.status === 0) {
     process.stdout.write(firstDeploy.stdout ?? '');
