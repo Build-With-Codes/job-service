@@ -6,7 +6,7 @@ export declare class PromptsService {
     private readonly logger;
     constructor(prisma: PrismaService);
     search(input: SearchPromptsDto): Promise<{
-        data: ({
+        data: (({
             sources: {
                 id: string;
                 sourceUrl: string | null;
@@ -75,7 +75,7 @@ export declare class PromptsService {
             trendingScore: number;
             publishedAt: Date;
             lastUpdatedAt: Date;
-        })[];
+        }) | undefined)[];
         meta: {
             page: number;
             limit: number;
@@ -83,6 +83,7 @@ export declare class PromptsService {
             totalPages: number;
         };
     }>;
+    private hybridSearch;
     findBySlug(slug: string): Promise<({
         sources: {
             id: string;
@@ -273,6 +274,9 @@ export declare class PromptsService {
         requested: number;
         processed: number;
     }>;
+    private buildHybridFilterSql;
+    private buildHybridOrderSql;
+    private expandPromptSearchQuery;
     private buildWhere;
     private buildOrder;
     private parsePromptFeed;

@@ -4,7 +4,7 @@ export declare class PromptsController {
     private readonly prompts;
     constructor(prompts: PromptsService);
     search(query: SearchPromptsDto): Promise<{
-        data: ({
+        data: (({
             sources: {
                 id: string;
                 sourceUrl: string | null;
@@ -73,7 +73,7 @@ export declare class PromptsController {
             trendingScore: number;
             publishedAt: Date;
             lastUpdatedAt: Date;
-        })[];
+        }) | undefined)[];
         meta: {
             page: number;
             limit: number;

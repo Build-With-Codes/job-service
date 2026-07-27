@@ -32,6 +32,9 @@ let PromptsService = PromptsService_1 = class PromptsService {
     }
     async search(input) {
         const { skip, take, page, limit } = (0, pagination_dto_1.paginate)(input.page, input.limit);
+        if (input.q?.trim()) {
+            return this.hybridSearch(input, { skip, take, page, limit });
+        }
         const where = this.buildWhere(input);
         const orderBy = this.buildOrder(input);
         const [total, data] = await Promise.all([
@@ -45,6 +48,88 @@ let PromptsService = PromptsService_1 = class PromptsService {
             }),
         ]);
         return { data, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+    }
+    async hybridSearch(input, pagination) {
+        const q = input.q?.trim() ?? '';
+        const semanticQuery = this.expandPromptSearchQuery(q);
+        const filterSql = this.buildHybridFilterSql(input);
+        const orderSql = this.buildHybridOrderSql(input);
+        const rows = await this.prisma.db.$queryRaw `
+      WITH prompt_docs AS (
+        SELECT
+          p."id",
+          p."qualityScore",
+          p."trendingScore",
+          p."featured",
+          p."publishedAt",
+          COALESCE(s."copies", 0) AS "copies",
+          COALESCE(s."saves", 0) AS "saves",
+          CONCAT_WS(
+            ' ',
+            p."title",
+            p."description",
+            p."prompt",
+            p."promptType",
+            p."difficulty",
+            ARRAY_TO_STRING(p."supportedModels", ' '),
+            COALESCE(STRING_AGG(DISTINCT pc."name", ' '), ''),
+            COALESCE(STRING_AGG(DISTINCT pt."name", ' '), '')
+          ) AS doc
+        FROM "aiverse_jobs"."Prompt" p
+        LEFT JOIN "aiverse_jobs"."PromptStat" s ON s."promptId" = p."id"
+        LEFT JOIN "aiverse_jobs"."PromptCategory" pc ON pc."promptId" = p."id"
+        LEFT JOIN "aiverse_jobs"."PromptTag" pt ON pt."promptId" = p."id"
+        WHERE ${filterSql}
+        GROUP BY p."id", s."copies", s."saves"
+      ),
+      ranked AS (
+        SELECT
+          "id",
+          (
+            TS_RANK_CD(TO_TSVECTOR('english', doc), WEBSEARCH_TO_TSQUERY('english', ${semanticQuery})) * 9
+            + GREATEST(
+                SIMILARITY(LOWER(doc), LOWER(${q})),
+                WORD_SIMILARITY(LOWER(${q}), LOWER(doc))
+              ) * 6
+            + CASE WHEN LOWER(doc) LIKE '%' || LOWER(${q}) || '%' THEN 3 ELSE 0 END
+            + ("qualityScore"::float / 100)
+            + LEAST("trendingScore"::float / 100, 1)
+          ) AS rank_score,
+          "qualityScore",
+          "trendingScore",
+          "featured",
+          "publishedAt",
+          "copies",
+          "saves"
+        FROM prompt_docs
+        WHERE
+          TO_TSVECTOR('english', doc) @@ WEBSEARCH_TO_TSQUERY('english', ${semanticQuery})
+          OR LOWER(doc) LIKE '%' || LOWER(${q}) || '%'
+          OR WORD_SIMILARITY(LOWER(${q}), LOWER(doc)) >= 0.18
+          OR SIMILARITY(LOWER(doc), LOWER(${q})) >= 0.08
+      )
+      SELECT "id", COUNT(*) OVER() AS total
+      FROM ranked
+      ORDER BY ${orderSql}
+      OFFSET ${pagination.skip}
+      LIMIT ${pagination.take}
+    `;
+        const ids = rows.map((row) => row.id);
+        const total = rows.length > 0 ? Number(rows[0].total) : 0;
+        const prompts = ids.length
+            ? await this.prisma.db.prompt.findMany({ where: { id: { in: ids } }, include: promptInclude })
+            : [];
+        const byId = new Map(prompts.map((prompt) => [prompt.id, prompt]));
+        const data = ids.map((id) => byId.get(id)).filter(Boolean);
+        return {
+            data,
+            meta: {
+                page: pagination.page,
+                limit: pagination.limit,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / pagination.limit)),
+            },
+        };
     }
     async findBySlug(slug) {
         return this.prisma.db.prompt.findUnique({
@@ -307,6 +392,73 @@ let PromptsService = PromptsService_1 = class PromptsService {
             processed += 1;
         }
         return { requested: take, processed };
+    }
+    buildHybridFilterSql(input) {
+        const filters = [client_1.Prisma.sql `p."status" = 'PUBLISHED'`];
+        if (input.category && input.category !== 'all') {
+            filters.push(client_1.Prisma.sql `EXISTS (
+        SELECT 1 FROM "aiverse_jobs"."PromptCategory" fc
+        WHERE fc."promptId" = p."id" AND fc."slug" = ${input.category}
+      )`);
+        }
+        if (input.model && input.model !== 'all') {
+            filters.push(client_1.Prisma.sql `${input.model} = ANY(p."supportedModels")`);
+        }
+        if (input.difficulty && input.difficulty !== 'all') {
+            filters.push(client_1.Prisma.sql `LOWER(p."difficulty") = LOWER(${input.difficulty})`);
+        }
+        if (input.promptType && input.promptType !== 'all') {
+            filters.push(client_1.Prisma.sql `LOWER(p."promptType") = LOWER(${input.promptType})`);
+        }
+        if (input.tab === 'recommended') {
+            filters.push(client_1.Prisma.sql `
+        p."qualityScore" >= 92
+        AND p."readabilityScore" >= 92
+        AND p."structureScore" >= 92
+        AND p."variablesScore" >= 92
+        AND p."reusabilityScore" >= 92
+      `);
+        }
+        return client_1.Prisma.join(filters, ' AND ');
+    }
+    buildHybridOrderSql(input) {
+        const sort = input.sort ?? input.tab ?? 'trending';
+        if (sort === 'featured')
+            return client_1.Prisma.sql `"featured" DESC, rank_score DESC, "qualityScore" DESC, "trendingScore" DESC`;
+        if (sort === 'latest')
+            return client_1.Prisma.sql `rank_score DESC, "publishedAt" DESC`;
+        if (sort === 'quality' || sort === 'recommended')
+            return client_1.Prisma.sql `rank_score DESC, "qualityScore" DESC, "trendingScore" DESC`;
+        if (sort === 'used')
+            return client_1.Prisma.sql `rank_score DESC, "copies" DESC, "trendingScore" DESC`;
+        if (sort === 'saved')
+            return client_1.Prisma.sql `rank_score DESC, "saves" DESC, "trendingScore" DESC`;
+        return client_1.Prisma.sql `rank_score DESC, "trendingScore" DESC, "qualityScore" DESC`;
+    }
+    expandPromptSearchQuery(query) {
+        const normalized = query.toLowerCase();
+        const extras = new Set();
+        const semanticGroups = [
+            ['email', 'mail', 'newsletter', 'outreach', 'campaign', 'copywriting'],
+            ['blog', 'article', 'outline', 'content', 'writing', 'seo'],
+            ['code', 'coding', 'developer', 'programming', 'debug', 'software'],
+            ['claude', 'anthropic'],
+            ['gpt', 'chatgpt', 'openai'],
+            ['gemini', 'google'],
+            ['support', 'customer', 'helpdesk', 'service', 'agent'],
+            ['image', 'logo', 'design', 'creative', 'visual'],
+            ['marketing', 'sales', 'growth', 'copywriting', 'campaign'],
+            ['system', 'assistant', 'role', 'instruction'],
+            ['json', 'schema', 'structured', 'format'],
+            ['workflow', 'automation', 'agent', 'chain'],
+        ];
+        for (const group of semanticGroups) {
+            if (group.some((term) => normalized.includes(term))) {
+                for (const term of group)
+                    extras.add(term);
+            }
+        }
+        return [query, ...extras].join(' ');
     }
     buildWhere(input) {
         const q = input.q?.trim();
