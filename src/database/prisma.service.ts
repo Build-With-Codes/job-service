@@ -12,6 +12,7 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
   private readonly pool: Pool;
   private readonly client: PrismaClient;
   private connected = false;
+  private lastError: string | null = null;
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     this.pool = new Pool({
@@ -25,10 +26,17 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onModuleInit() {
-    await this.client.$connect();
-    await this.client.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`);
-    this.connected = true;
-    this.logger.log('Prisma connected with pooled PostgreSQL runtime connection.');
+    try {
+      await this.client.$connect();
+      await this.client.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`);
+      this.connected = true;
+      this.lastError = null;
+      this.logger.log('Prisma connected with pooled PostgreSQL runtime connection.');
+    } catch (error) {
+      this.connected = false;
+      this.lastError = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Prisma connection failed. API will still start, but database-backed routes are unavailable: ${this.lastError}`);
+    }
   }
 
   get db() {
@@ -39,9 +47,35 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
     return this.connected;
   }
 
+  getStatus() {
+    return {
+      configured: Boolean(this.config.get('databaseUrl', { infer: true })?.trim()),
+      connected: this.connected,
+      lastError: this.lastError,
+      runtimeConnection: {
+        type: 'pooled',
+        env: 'DATABASE_URL',
+        poolMax: this.config.get('dbPoolMax', { infer: true }),
+      },
+      migrationConnection: {
+        type: 'direct',
+        env: this.config.get('directUrl', { infer: true }) ? 'DIRECT_URL' : null,
+        configured: Boolean(this.config.get('directUrl', { infer: true })?.trim()),
+      },
+    };
+  }
+
   async ping() {
-    await this.client.$queryRaw`SELECT 1`;
-    return true;
+    try {
+      await this.client.$queryRaw`SELECT 1`;
+      this.connected = true;
+      this.lastError = null;
+      return true;
+    } catch (error) {
+      this.connected = false;
+      this.lastError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
   }
 
   async onApplicationShutdown() {

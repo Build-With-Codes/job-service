@@ -14,10 +14,11 @@ export class HealthService {
   }
 
   async ready() {
-    await this.prisma.ping();
+    const database = await this.prisma.ping();
     return {
-      ok: true,
-      database: this.prisma.isConnected(),
+      ok: database,
+      database,
+      prisma: this.prisma.getStatus(),
       timestamp: new Date().toISOString(),
     };
   }
