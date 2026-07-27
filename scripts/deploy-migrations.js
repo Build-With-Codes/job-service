@@ -7,8 +7,8 @@ const { Client } = require('pg');
 const SCHEMA_NAME = 'aiverse_jobs';
 const ALLOW_UNREACHABLE =
   process.argv.includes('--allow-unreachable') &&
-  process.env.ALLOW_UNREACHABLE_MIGRATIONS !== 'false';
-const REACHABILITY_ERROR_CODES = ['P1001', 'P1002', 'ETIMEDOUT'];
+  process.env.ALLOW_UNREACHABLE_MIGRATIONS === 'true';
+const REACHABILITY_ERROR_CODES = ['P1001', 'P1002'];
 
 const BASELINE_MIGRATIONS = [
   {
@@ -43,16 +43,7 @@ function getDatabaseUrl() {
   return withSchema(raw);
 }
 
-function getMigrationUrlCandidates() {
-  const candidates = [process.env.DIRECT_URL, process.env.DATABASE_URL]
-    .filter(Boolean)
-    .map((url) => withSchema(url));
-  return [...new Set(candidates)];
-}
-
 function runPrisma(args, options = {}) {
-  const timeoutMs = Number(process.env.PRISMA_MIGRATION_TIMEOUT_MS ?? 90_000);
-  const databaseUrl = options.databaseUrl ?? getDatabaseUrl();
   const command = path.join(
     process.cwd(),
     'node_modules',
@@ -65,31 +56,16 @@ function runPrisma(args, options = {}) {
       ? ['/d', '/c', ['call', command, ...args].join(' ')]
       : args;
 
-  console.log(`Running Prisma command: prisma ${args.join(' ')}`);
-
   return spawnSync(spawnCommand, spawnArgs, {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      DIRECT_URL: databaseUrl,
-    },
+    env: process.env,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
-    timeout: timeoutMs,
   });
 }
 
 function assertSuccess(result, label) {
-  if (result.error) {
-    const message = `${result.error.code ?? ''} ${result.error.message ?? result.error}`.trim();
-    if (warnAndAllowUnreachable(message)) return;
-    throw result.error;
-  }
-  if (result.signal === 'SIGTERM' && result.status === null) {
-    if (warnAndAllowUnreachable('ETIMEDOUT')) return;
-    throw new Error(`${label} timed out. Increase PRISMA_MIGRATION_TIMEOUT_MS if the database is slow.`);
-  }
+  if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${label} failed with exit code ${result.status ?? 'unknown'}`);
   }
@@ -102,7 +78,7 @@ function isReachabilityError(output) {
 function warnAndAllowUnreachable(output) {
   if (!ALLOW_UNREACHABLE || !isReachabilityError(output)) return false;
   console.warn(
-    'Prisma migration database is unreachable. Continuing startup because --allow-unreachable is enabled.',
+    'Prisma migration database is unreachable. Continuing startup because ALLOW_UNREACHABLE_MIGRATIONS=true.',
   );
   console.warn('Fix DATABASE_URL/DIRECT_URL or run migrations from an authorized network node.');
   return true;
@@ -163,32 +139,10 @@ async function baselineExistingDatabase() {
 
 async function main() {
   console.log(`Initiating ${SCHEMA_NAME} database deployment check cycle...`);
-  const urls = getMigrationUrlCandidates();
-  let firstDeploy;
-  let output = '';
+  const firstDeploy = runPrisma(['migrate', 'deploy'], { capture: true });
 
-  for (const [index, databaseUrl] of urls.entries()) {
-    firstDeploy = runPrisma(['migrate', 'deploy'], { capture: true, databaseUrl });
-    output = `${firstDeploy.stdout ?? ''}${firstDeploy.stderr ?? ''}`;
-
-    if (!firstDeploy.error) break;
-
-    const message = `${firstDeploy.error.code ?? ''} ${firstDeploy.error.message ?? firstDeploy.error}`.trim();
-    const hasFallback = index < urls.length - 1;
-
-    if (hasFallback && isReachabilityError(message)) {
-      console.warn('Prisma migration connection failed for DIRECT_URL. Retrying with DATABASE_URL...');
-      continue;
-    }
-
-    if (warnAndAllowUnreachable(message)) return;
-    throw firstDeploy.error;
-  }
-
-  if (firstDeploy.signal === 'SIGTERM' && firstDeploy.status === null) {
-    if (warnAndAllowUnreachable('ETIMEDOUT')) return;
-    throw new Error('prisma migrate deploy timed out. Check DATABASE_URL/DIRECT_URL network access or increase PRISMA_MIGRATION_TIMEOUT_MS.');
-  }
+  if (firstDeploy.error) throw firstDeploy.error;
+  const output = `${firstDeploy.stdout ?? ''}${firstDeploy.stderr ?? ''}`;
 
   if (firstDeploy.status === 0) {
     process.stdout.write(firstDeploy.stdout ?? '');
