@@ -37,7 +37,7 @@ async function bootstrap() {
   SwaggerModule.setup('/docs', app, document);
 
   const port = config.get('port', { infer: true });
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   Logger.log(`Job Service API listening on ${port}`);
 }
 

@@ -44,6 +44,7 @@ function getDatabaseUrl() {
 }
 
 function runPrisma(args, options = {}) {
+  const timeoutMs = Number(process.env.PRISMA_MIGRATION_TIMEOUT_MS ?? 45_000);
   const command = path.join(
     process.cwd(),
     'node_modules',
@@ -56,6 +57,8 @@ function runPrisma(args, options = {}) {
       ? ['/d', '/c', ['call', command, ...args].join(' ')]
       : args;
 
+  console.log(`Running Prisma command: prisma ${args.join(' ')}`);
+
   return spawnSync(spawnCommand, spawnArgs, {
     cwd: process.cwd(),
     env: {
@@ -65,11 +68,15 @@ function runPrisma(args, options = {}) {
     },
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
+    timeout: timeoutMs,
   });
 }
 
 function assertSuccess(result, label) {
   if (result.error) throw result.error;
+  if (result.signal === 'SIGTERM' && result.status === null) {
+    throw new Error(`${label} timed out. Increase PRISMA_MIGRATION_TIMEOUT_MS if the database is slow.`);
+  }
   if (result.status !== 0) {
     throw new Error(`${label} failed with exit code ${result.status ?? 'unknown'}`);
   }
@@ -89,7 +96,10 @@ function warnAndAllowUnreachable(output) {
 }
 
 async function getExistingTables(databaseUrl) {
-  const client = new Client({ connectionString: databaseUrl });
+  const client = new Client({
+    connectionString: databaseUrl,
+    connectionTimeoutMillis: Number(process.env.DB_MIGRATION_CONNECT_TIMEOUT_MS ?? 10_000),
+  });
   await client.connect();
   try {
     const result = await client.query(
@@ -104,22 +114,6 @@ async function getExistingTables(databaseUrl) {
     return new Set(result.rows.map((row) => row.table_name));
   } finally {
     await client.end();
-  }
-}
-
-async function assertDatabaseReachable() {
-  const databaseUrl = getDatabaseUrl();
-  const client = new Client({ connectionString: databaseUrl });
-  try {
-    await client.connect();
-    await client.query('SELECT 1');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Cannot connect to PostgreSQL for migrations: ${message}. Check DATABASE_URL/DIRECT_URL in .env.`,
-    );
-  } finally {
-    await client.end().catch(() => undefined);
   }
 }
 
@@ -156,10 +150,14 @@ async function baselineExistingDatabase() {
 
 async function main() {
   console.log(`Initiating ${SCHEMA_NAME} database deployment check cycle...`);
-  await assertDatabaseReachable();
   const firstDeploy = runPrisma(['migrate', 'deploy'], { capture: true });
 
   if (firstDeploy.error) throw firstDeploy.error;
+  if (firstDeploy.signal === 'SIGTERM' && firstDeploy.status === null) {
+    throw new Error(
+      'prisma migrate deploy timed out. Check DATABASE_URL/DIRECT_URL network access or increase PRISMA_MIGRATION_TIMEOUT_MS.',
+    );
+  }
   const output = `${firstDeploy.stdout ?? ''}${firstDeploy.stderr ?? ''}`;
 
   if (firstDeploy.status === 0) {
