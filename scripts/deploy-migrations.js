@@ -42,11 +42,43 @@ function withSchema(raw) {
   }
 }
 
+function isLikelyPoolerUrl(raw) {
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    return url.hostname.includes('pooler.supabase.com') || url.port === '6543';
+  } catch {
+    return raw.includes('pooler.supabase.com') || raw.includes(':6543');
+  }
+}
+
+function describeDatabaseTarget(raw) {
+  try {
+    const url = new URL(raw);
+    return `${url.hostname}:${url.port || 'default'}`;
+  } catch {
+    return 'unparseable connection string';
+  }
+}
+
 function getDatabaseUrl() {
-  const raw = process.env.DIRECT_URL ?? process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
+  const directUrl = process.env.DIRECT_URL ?? process.env.DIRECT_DATABASE_URL;
+  const raw = directUrl ?? process.env.DATABASE_URL;
   if (!raw) {
     throw new Error('DIRECT_URL or DATABASE_URL is required to deploy Prisma migrations.');
   }
+
+  if (!directUrl && isLikelyPoolerUrl(raw)) {
+    throw new Error(
+      [
+        'Prisma migrations cannot run through the Supabase pooler connection.',
+        'Set DIRECT_URL or DIRECT_DATABASE_URL to the direct PostgreSQL connection string for migrations.',
+        'Keep DATABASE_URL as the pooled runtime connection if needed.',
+        `Detected migration fallback target: ${describeDatabaseTarget(raw)}`,
+      ].join(' '),
+    );
+  }
+
   return withSchema(raw);
 }
 
