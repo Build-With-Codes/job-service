@@ -13,10 +13,13 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
   private readonly client: PrismaClient;
   private connected = false;
   private lastError: string | null = null;
+  private readonly runtimeConnectionHost: string | null;
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
+    const databaseUrl = this.resolveDatabaseUrl();
+    this.runtimeConnectionHost = this.extractConnectionHost(databaseUrl);
     this.pool = new Pool({
-      connectionString: this.config.get('databaseUrl', { infer: true }),
+      connectionString: databaseUrl,
       max: this.config.get('dbPoolMax', { infer: true }),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 5_000,
@@ -55,6 +58,7 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
       runtimeConnection: {
         type: 'pooled',
         env: 'DATABASE_URL',
+        host: this.runtimeConnectionHost,
         poolMax: this.config.get('dbPoolMax', { infer: true }),
       },
       migrationConnection: {
@@ -82,5 +86,26 @@ export class PrismaService implements OnModuleInit, OnApplicationShutdown {
     await this.client.$disconnect();
     await this.pool.end();
     this.connected = false;
+  }
+
+  private resolveDatabaseUrl() {
+    const configuredUrl = this.config.get('databaseUrl', { infer: true });
+
+    try {
+      const url = new URL(configuredUrl);
+      url.searchParams.set('schema', this.schemaName);
+      return url.toString();
+    } catch {
+      return configuredUrl;
+    }
+  }
+
+  private extractConnectionHost(connectionString: string) {
+    try {
+      const url = new URL(connectionString);
+      return `${url.hostname}:${url.port || 'default'}`;
+    } catch {
+      return null;
+    }
   }
 }

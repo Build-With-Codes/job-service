@@ -102,7 +102,7 @@ function isReachabilityError(output) {
 function warnAndAllowUnreachable(output) {
   if (!ALLOW_UNREACHABLE || !isReachabilityError(output)) return false;
   console.warn(
-    'Prisma migration database is unreachable. Continuing startup because ALLOW_UNREACHABLE_MIGRATIONS=true.',
+    'Prisma migration database is unreachable. Continuing startup because --allow-unreachable is enabled.',
   );
   console.warn('Fix DATABASE_URL/DIRECT_URL or run migrations from an authorized network node.');
   return true;
