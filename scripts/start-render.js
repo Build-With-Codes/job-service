@@ -2,7 +2,7 @@
 require('dotenv/config');
 
 const http = require('node:http');
-const { spawn, spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 
 const port = Number(process.env.PORT ?? 3002);
 
@@ -37,22 +37,28 @@ function createTemporaryServer() {
 
 function runMigrations() {
   log('Running Prisma migrations before starting the API.');
-  const result = spawnSync(process.execPath, ['scripts/deploy-migrations.js'], {
+  const child = spawn(process.execPath, ['scripts/deploy-migrations.js'], {
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',
-    encoding: 'utf8',
   });
 
-  if (result.error) {
-    throw result.error;
-  }
+  return new Promise((resolve, reject) => {
+    child.on('error', reject);
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        log('Prisma migrations completed successfully.');
+        resolve();
+        return;
+      }
 
-  if (result.status !== 0) {
-    throw new Error(`Migration process exited with code ${result.status ?? 'unknown'}.`);
-  }
-
-  log('Prisma migrations completed successfully.');
+      reject(
+        new Error(
+          `Migration process exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}.`,
+        ),
+      );
+    });
+  });
 }
 
 function startApi() {
@@ -82,11 +88,11 @@ temporaryServer.on('error', (error) => {
   fail(`Temporary startup server failed to bind port ${port}.`, error);
 });
 
-temporaryServer.listen(port, '0.0.0.0', () => {
+temporaryServer.listen(port, '0.0.0.0', async () => {
   log(`Temporary startup server listening on port ${port}.`);
 
   try {
-    runMigrations();
+    await runMigrations();
   } catch (error) {
     temporaryServer.close(() => {
       fail('Startup migration failed. Deployment should stop.', error);

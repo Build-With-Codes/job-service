@@ -55,7 +55,9 @@ function isLikelyPoolerUrl(raw) {
 function describeDatabaseTarget(raw) {
   try {
     const url = new URL(raw);
-    return `${url.hostname}:${url.port || 'default'}`;
+    const schema = url.searchParams.get('schema') ?? SCHEMA_NAME;
+    const user = url.username ? `${url.username}@` : '';
+    return `${user}${url.hostname}:${url.port || 'default'} schema=${schema}`;
   } catch {
     return 'unparseable connection string';
   }
@@ -167,6 +169,22 @@ function getMigrationsToBaseline(existingTables) {
   }).map((migration) => migration.name);
 }
 
+async function verifyRequiredTables() {
+  const existingTables = await getExistingTables(getDatabaseUrl());
+  const requiredTables = new Set(BASELINE_MIGRATIONS.flatMap((migration) => migration.tables));
+  const missingTables = [...requiredTables].filter((table) => !existingTables.has(table));
+
+  if (missingTables.length > 0) {
+    throw new Error(
+      `Migration finished, but required tables are still missing in schema "${SCHEMA_NAME}": ${missingTables.join(', ')}`,
+    );
+  }
+
+  console.log(
+    `Verified ${requiredTables.size} required table(s) in schema "${SCHEMA_NAME}".`,
+  );
+}
+
 async function baselineExistingDatabase() {
   const existingTables = await getExistingTables(getDatabaseUrl());
   const migrations = getMigrationsToBaseline(existingTables);
@@ -189,6 +207,7 @@ async function baselineExistingDatabase() {
 
 async function main() {
   console.log(`Initiating ${SCHEMA_NAME} database deployment check cycle...`);
+  console.log(`Migration target: ${describeDatabaseTarget(getDatabaseUrl())}`);
   const firstDeploy = runPrisma(['migrate', 'deploy'], { capture: true });
 
   const output = `${firstDeploy.stdout ?? ''}${firstDeploy.stderr ?? ''}`;
@@ -202,6 +221,7 @@ async function main() {
   if (firstDeploy.status === 0) {
     process.stdout.write(firstDeploy.stdout ?? '');
     process.stderr.write(firstDeploy.stderr ?? '');
+    await verifyRequiredTables();
     console.log('Database schema successfully checked and synchronized.');
     return;
   }
@@ -219,6 +239,7 @@ async function main() {
   await baselineExistingDatabase();
   console.log('Executing final catch-up migration deployment...');
   assertSuccess(runPrisma(['migrate', 'deploy']), 'prisma migrate deploy');
+  await verifyRequiredTables();
 }
 
 main().catch((error) => {
