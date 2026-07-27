@@ -5,7 +5,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "npm run prisma:generate && nest build",
-    "start": "npm run prisma:migrate:startup && node dist/src/api.js",
+    "start": "node scripts/start-render.js",
     "start:api": "npm run prisma:migrate:startup && node dist/src/api.js",
     "start:api:allow-unreachable": "node scripts/deploy-migrations.js --allow-unreachable && node dist/src/api.js",
     "start:worker": "npm run prisma:migrate:startup && node dist/src/worker.js",
