@@ -1,0 +1,128 @@
+import type { NormalizedJobInput } from '../normalization/normalization.types';
+
+const PRIMARY_FUTURE_TECH_PATTERNS = [
+  /\bai\b/i,
+  /\bartificial intelligence\b/i,
+  /\bmachine learning\b/i,
+  /\bml engineer\b/i,
+  /\bmlops\b/i,
+  /\bdeep learning\b/i,
+  /\bgenerative ai\b/i,
+  /\bgenai\b/i,
+  /\bllm\b/i,
+  /\blarge language model/i,
+  /\bnatural language processing\b/i,
+  /\bnlp\b/i,
+  /\bcomputer vision\b/i,
+  /\bdata scientist\b/i,
+  /\bdata science\b/i,
+  /\bresearch scientist\b/i,
+  /\bapplied scientist\b/i,
+  /\bmodel training\b/i,
+  /\bmodel inference\b/i,
+  /\bprompt engineer/i,
+  /\brobotics\b/i,
+  /\bsoftware engineer\b/i,
+  /\bsoftware developer\b/i,
+  /\bbackend engineer\b/i,
+  /\bfrontend engineer\b/i,
+  /\bfull[-\s]?stack\b/i,
+  /\bdeveloper\b/i,
+  /\bdata engineer\b/i,
+  /\bdata analyst\b/i,
+  /\banalytics engineer\b/i,
+  /\bbusiness intelligence\b/i,
+  /\bcloud engineer\b/i,
+  /\bcloud architect\b/i,
+  /\bdevops\b/i,
+  /\bdevsecops\b/i,
+  /\bsite reliability\b/i,
+  /\bsre\b/i,
+  /\bplatform engineer\b/i,
+  /\binfrastructure engineer\b/i,
+  /\bkubernetes\b/i,
+  /\bcybersecurity\b/i,
+  /\bsecurity engineer\b/i,
+  /\bapplication security\b/i,
+  /\bproduct manager\b/i,
+  /\bproduct designer\b/i,
+  /\bux designer\b/i,
+  /\bui designer\b/i,
+  /\btechnical program manager\b/i,
+  /\bsolutions engineer\b/i,
+  /\bsales engineer\b/i,
+  /\btechnical writer\b/i,
+  /\brobotics engineer\b/i,
+  /\bhardware engineer\b/i,
+  /\bembedded\b/i,
+  /\bfintech\b/i,
+  /\bhealthtech\b/i,
+  /\bbiotech\b/i,
+  /\bedtech\b/i,
+  /\bclimate tech\b/i,
+  /\baerospace\b/i,
+  /\bmanufacturing engineer\b/i,
+];
+
+const SUPPORTING_FUTURE_TECH_PATTERNS = [
+  /\bpython\b/i,
+  /\btypescript\b/i,
+  /\bjavascript\b/i,
+  /\breact\b/i,
+  /\bnode\.?js\b/i,
+  /\bjava\b/i,
+  /\bgolang\b/i,
+  /\brust\b/i,
+  /\bc\+\+\b/i,
+  /\bpytorch\b/i,
+  /\btensorflow\b/i,
+  /\bjax\b/i,
+  /\bcuda\b/i,
+  /\baws\b/i,
+  /\bazure\b/i,
+  /\bgcp\b/i,
+  /\bdocker\b/i,
+  /\bterraform\b/i,
+  /\bsql\b/i,
+  /\bsnowflake\b/i,
+  /\bdatabricks\b/i,
+  /\btableau\b/i,
+  /\bvector database\b/i,
+  /\bembedding/i,
+  /\brag\b/i,
+  /\bsemantic search\b/i,
+  /\brecommendation system/i,
+  /\bautonomous/i,
+  /\bclassification model/i,
+  /\bpredictive model/i,
+];
+
+function textForJob(job: NormalizedJobInput) {
+  return [
+    job.title,
+    job.descriptionText,
+    job.description,
+    job.employmentType,
+    job.workplaceType,
+    ...(job.skills ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function getAiJobRelevance(job: NormalizedJobInput) {
+  const title = job.title ?? '';
+  const fullText = textForJob(job);
+  const strongTitleMatches = PRIMARY_FUTURE_TECH_PATTERNS.filter((pattern) => pattern.test(title)).length;
+  const strongMatches = PRIMARY_FUTURE_TECH_PATTERNS.filter((pattern) => pattern.test(fullText)).length;
+  const supportingMatches = SUPPORTING_FUTURE_TECH_PATTERNS.filter((pattern) => pattern.test(fullText)).length;
+  const score = strongTitleMatches * 4 + strongMatches * 3 + supportingMatches;
+
+  return {
+    isAiRelated: score >= 3,
+    score,
+    strongTitleMatches,
+    strongMatches,
+    supportingMatches,
+  };
+}

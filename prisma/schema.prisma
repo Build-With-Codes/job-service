@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["aiverse_jobs"]
+}
+
+enum ProviderStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+
+  @@schema("aiverse_jobs")
+}
+
+enum JobStatus {
+  ACTIVE
+  EXPIRED
+  REMOVED
+  PAUSED
+
+  @@schema("aiverse_jobs")
+}
+
+enum IngestionRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+
+  @@schema("aiverse_jobs")
+}
+
+enum OutboxEventType {
+  JOB_CREATED
+  JOB_UPDATED
+  JOB_EXPIRED
+  COMPANY_UPDATED
+
+  @@schema("aiverse_jobs")
+}
+
+model Provider {
+  id                   String         @id @default(cuid())
+  name                 String
+  type                 String         @unique
+  status               ProviderStatus @default(ACTIVE)
+  configuration        Json?
+  lastSuccessfulSyncAt DateTime?
+  lastAttemptedSyncAt  DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  sources              JobSource[]
+  ingestionRuns        IngestionRun[]
+
+  @@index([status])
+  @@schema("aiverse_jobs")
+}
+
+model Company {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String
+  slug           String   @unique
+  domain         String?
+  website        String?
+  logoUrl        String?
+  description    String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  jobs           Job[]
+
+  @@index([normalizedName])
+  @@index([domain])
+  @@schema("aiverse_jobs")
+}
+
+model Job {
+  id                 String        @id @default(cuid())
+  companyId          String
+  title              String
+  slug               String        @unique
+  description        String?       @db.Text
+  descriptionText    String?       @db.Text
+  employmentType     String?
+  workplaceType      String?
+  salaryMin          Float?
+  salaryMax          Float?
+  salaryCurrency     String?
+  salaryPeriod       String?
+  postedAt           DateTime?
+  firstSeenAt        DateTime      @default(now())
+  lastSeenAt         DateTime      @default(now())
+  expiresAt          DateTime?
+  status             JobStatus     @default(ACTIVE)
+  contentHash        String
+  dedupeFingerprint  String
+  missingSyncCount   Int           @default(0)
+  searchVector       Unsupported("tsvector")?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sources            JobSource[]
+  locations          JobLocation[]
+  skills             JobSkill[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dedupeFingerprint])
+  @@index([contentHash])
+  @@index([postedAt])
+  @@schema("aiverse_jobs")
+}
+
+model JobSource {
+  id                 String   @id @default(cuid())
+  jobId              String
+  providerId         String
+  sourceJobId        String
+  sourceUrl          String
+  canonicalSourceUrl String
+  applyUrl           String
+  rawPayloadLocation String?
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  job                Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  provider           Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, sourceJobId])
+  @@index([jobId])
+  @@index([canonicalSourceUrl])
+  @@schema("aiverse_jobs")
+}
+
+model JobLocation {
+  id          String   @id @default(cuid())
+  jobId       String
+  city        String?
+  state       String?
+  country     String?
+  countryCode String?
+  latitude    Float?
+  longitude   Float?
+  isRemote    Boolean  @default(false)
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([countryCode])
+  @@index([city])
+  @@index([isRemote])
+  @@schema("aiverse_jobs")
+}
+
+model Skill {
+  id             String     @id @default(cuid())
+  name           String
+  normalizedName String     @unique
+  jobs           JobSkill[]
+
+  @@index([normalizedName])
+  @@schema("aiverse_jobs")
+}
+
+model JobSkill {
+  jobId   String
+  skillId String
+  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, skillId])
+  @@schema("aiverse_jobs")
+}
+
+model IngestionRun {
+  id          String             @id @default(cuid())
+  providerId  String
+  status      IngestionRunStatus @default(RUNNING)
+  startedAt   DateTime           @default(now())
+  completedAt DateTime?
+  jobsFetched Int                @default(0)
+  jobsCreated Int                @default(0)
+  jobsUpdated Int                @default(0)
+  jobsSkipped Int                @default(0)
+  jobsExpired Int                @default(0)
+  jobsFailed  Int                @default(0)
+  errorMessage String?           @db.Text
+  provider    Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  errors      IngestionError[]
+
+  @@index([providerId])
+  @@index([status])
+  @@index([startedAt])
+  @@schema("aiverse_jobs")
+}
+
+model IngestionError {
+  id             String       @id @default(cuid())
+  ingestionRunId String
+  provider       String
+  sourceJobId    String?
+  errorType      String
+  errorMessage   String       @db.Text
+  payloadLocation String?
+  createdAt      DateTime     @default(now())
+  ingestionRun   IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Cascade)
+
+  @@index([ingestionRunId])
+  @@index([provider])
+  @@index([createdAt])
+  @@schema("aiverse_jobs")
+}
+
+model OutboxEvent {
+  id            String          @id @default(cuid())
+  eventType     OutboxEventType
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  processedAt   DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([processedAt])
+  @@index([eventType])
+  @@index([createdAt])
+  @@schema("aiverse_jobs")
+}
