@@ -9,10 +9,30 @@ export declare class PrismaService implements OnModuleInit, OnApplicationShutdow
     private readonly pool;
     private readonly client;
     private connected;
+    private lastError;
+    private readonly runtimeConnectionHost;
     constructor(config: ConfigService<EnvConfig, true>);
     onModuleInit(): Promise<void>;
     get db(): PrismaClient<import(".prisma/client").Prisma.PrismaClientOptions, never, import("@prisma/client/runtime/client").DefaultArgs>;
     isConnected(): boolean;
+    getStatus(): {
+        configured: boolean;
+        connected: boolean;
+        lastError: string | null;
+        runtimeConnection: {
+            type: string;
+            env: string;
+            host: string | null;
+            poolMax: number;
+        };
+        migrationConnection: {
+            type: string;
+            env: string | null;
+            configured: boolean;
+        };
+    };
     ping(): Promise<boolean>;
     onApplicationShutdown(): Promise<void>;
+    private resolveDatabaseUrl;
+    private extractConnectionHost;
 }

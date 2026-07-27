@@ -10,6 +10,22 @@ export declare class HealthService {
     ready(): Promise<{
         ok: boolean;
         database: boolean;
+        prisma: {
+            configured: boolean;
+            connected: boolean;
+            lastError: string | null;
+            runtimeConnection: {
+                type: string;
+                env: string;
+                host: string | null;
+                poolMax: number;
+            };
+            migrationConnection: {
+                type: string;
+                env: string | null;
+                configured: boolean;
+            };
+        };
         timestamp: string;
     }>;
 }

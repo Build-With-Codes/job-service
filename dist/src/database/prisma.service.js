@@ -23,10 +23,14 @@ let PrismaService = PrismaService_1 = class PrismaService {
     pool;
     client;
     connected = false;
+    lastError = null;
+    runtimeConnectionHost;
     constructor(config) {
         this.config = config;
+        const databaseUrl = this.resolveDatabaseUrl();
+        this.runtimeConnectionHost = this.extractConnectionHost(databaseUrl);
         this.pool = new pg_1.Pool({
-            connectionString: this.config.get('databaseUrl', { infer: true }),
+            connectionString: databaseUrl,
             max: this.config.get('dbPoolMax', { infer: true }),
             idleTimeoutMillis: 10_000,
             connectionTimeoutMillis: 5_000,
@@ -35,10 +39,18 @@ let PrismaService = PrismaService_1 = class PrismaService {
         this.client = new client_1.PrismaClient({ adapter: new adapter_pg_1.PrismaPg(this.pool) });
     }
     async onModuleInit() {
-        await this.client.$connect();
-        await this.client.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`);
-        this.connected = true;
-        this.logger.log('Prisma connected with pooled PostgreSQL runtime connection.');
+        try {
+            await this.client.$connect();
+            await this.client.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`);
+            this.connected = true;
+            this.lastError = null;
+            this.logger.log('Prisma connected with pooled PostgreSQL runtime connection.');
+        }
+        catch (error) {
+            this.connected = false;
+            this.lastError = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Prisma connection failed. API will still start, but database-backed routes are unavailable: ${this.lastError}`);
+        }
     }
     get db() {
         return this.client;
@@ -46,14 +58,61 @@ let PrismaService = PrismaService_1 = class PrismaService {
     isConnected() {
         return this.connected;
     }
+    getStatus() {
+        return {
+            configured: Boolean(this.config.get('databaseUrl', { infer: true })?.trim()),
+            connected: this.connected,
+            lastError: this.lastError,
+            runtimeConnection: {
+                type: 'pooled',
+                env: 'DATABASE_URL',
+                host: this.runtimeConnectionHost,
+                poolMax: this.config.get('dbPoolMax', { infer: true }),
+            },
+            migrationConnection: {
+                type: 'direct',
+                env: this.config.get('directUrl', { infer: true }) ? 'DIRECT_URL' : null,
+                configured: Boolean(this.config.get('directUrl', { infer: true })?.trim()),
+            },
+        };
+    }
     async ping() {
-        await this.client.$queryRaw `SELECT 1`;
-        return true;
+        try {
+            await this.client.$queryRaw `SELECT 1`;
+            this.connected = true;
+            this.lastError = null;
+            return true;
+        }
+        catch (error) {
+            this.connected = false;
+            this.lastError = error instanceof Error ? error.message : String(error);
+            return false;
+        }
     }
     async onApplicationShutdown() {
         await this.client.$disconnect();
         await this.pool.end();
         this.connected = false;
+    }
+    resolveDatabaseUrl() {
+        const configuredUrl = this.config.get('databaseUrl', { infer: true });
+        try {
+            const url = new URL(configuredUrl);
+            url.searchParams.set('schema', this.schemaName);
+            return url.toString();
+        }
+        catch {
+            return configuredUrl;
+        }
+    }
+    extractConnectionHost(connectionString) {
+        try {
+            const url = new URL(connectionString);
+            return `${url.hostname}:${url.port || 'default'}`;
+        }
+        catch {
+            return null;
+        }
     }
 };
 exports.PrismaService = PrismaService;

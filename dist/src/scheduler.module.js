@@ -12,13 +12,15 @@ const configuration_module_1 = require("./config/configuration.module");
 const logger_module_1 = require("./common/logging/logger.module");
 const queue_module_1 = require("./queues/queue.module");
 const ingestion_scheduler_1 = require("./modules/ingestion/ingestion.scheduler");
+const prompts_module_1 = require("./modules/prompts/prompts.module");
+const prompts_scheduler_1 = require("./modules/prompts/prompts.scheduler");
 let SchedulerModule = class SchedulerModule {
 };
 exports.SchedulerModule = SchedulerModule;
 exports.SchedulerModule = SchedulerModule = __decorate([
     (0, common_1.Module)({
-        imports: [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule, queue_module_1.QueueModule],
-        providers: [ingestion_scheduler_1.IngestionScheduler],
+        imports: [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule, queue_module_1.QueueModule, prompts_module_1.PromptsModule],
+        providers: [ingestion_scheduler_1.IngestionScheduler, prompts_scheduler_1.PromptsScheduler],
     })
 ], SchedulerModule);
 //# sourceMappingURL=scheduler.module.js.map

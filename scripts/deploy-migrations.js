@@ -29,6 +29,26 @@ const BASELINE_MIGRATIONS = [
       'OutboxEvent',
     ],
   },
+  {
+    name: '20260727153000_prompt_workspace',
+    tables: [
+      'Prompt',
+      'PromptVersion',
+      'PromptCategory',
+      'PromptTag',
+      'PromptSource',
+      'PromptEmbedding',
+      'PromptStat',
+      'PromptFavorite',
+      'PromptCollection',
+      'PromptCollectionPrompt',
+      'PromptCrawlLog',
+    ],
+  },
+  {
+    name: '20260727170000_prompt_events',
+    tables: ['PromptEvent'],
+  },
 ];
 
 function withSchema(raw) {

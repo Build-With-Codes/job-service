@@ -228,3 +228,213 @@ model OutboxEvent {
   @@index([createdAt])
   @@schema("aiverse_jobs")
 }
+
+model Prompt {
+  id                String             @id @default(cuid())
+  slug              String             @unique
+  title             String
+  description       String             @db.Text
+  prompt            String             @db.Text
+  promptType        String
+  difficulty        String
+  authorName        String?
+  sourceUrl         String?
+  license           String?
+  supportedModels   String[]
+  variables         Json?
+  exampleInput      Json?
+  exampleOutput     String?            @db.Text
+  qualityScore      Int                @default(0)
+  readabilityScore  Int                @default(0)
+  structureScore    Int                @default(0)
+  variablesScore    Int                @default(0)
+  reusabilityScore  Int                @default(0)
+  status            String             @default("PUBLISHED")
+  featured          Boolean            @default(false)
+  trendingScore     Float              @default(0)
+  publishedAt       DateTime           @default(now())
+  lastUpdatedAt     DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  versions          PromptVersion[]
+  categories        PromptCategory[]
+  tags              PromptTag[]
+  sources           PromptSource[]
+  embeddings        PromptEmbedding[]
+  stats             PromptStat?
+  events            PromptEvent[]
+  favorites         PromptFavorite[]
+  collections       PromptCollectionPrompt[]
+
+  @@index([status])
+  @@index([featured])
+  @@index([promptType])
+  @@index([difficulty])
+  @@index([trendingScore])
+  @@index([qualityScore])
+  @@index([publishedAt])
+  @@schema("aiverse_jobs")
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  promptId  String
+  version   Int
+  prompt    String   @db.Text
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  promptRef Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@schema("aiverse_jobs")
+}
+
+model PromptCategory {
+  id       String   @id @default(cuid())
+  promptId String
+  name     String
+  slug     String
+  prompt   Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, slug])
+  @@index([slug])
+  @@schema("aiverse_jobs")
+}
+
+model PromptTag {
+  id       String @id @default(cuid())
+  promptId String
+  name     String
+  slug     String
+  prompt   Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, slug])
+  @@index([slug])
+  @@schema("aiverse_jobs")
+}
+
+model PromptSource {
+  id          String   @id @default(cuid())
+  promptId    String
+  sourceType  String
+  sourceName  String
+  sourceUrl   String?
+  contentHash String
+  fetchedAt   DateTime @default(now())
+  prompt      Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId])
+  @@index([sourceType])
+  @@index([contentHash])
+  @@schema("aiverse_jobs")
+}
+
+model PromptEmbedding {
+  id        String   @id @default(cuid())
+  promptId  String
+  provider  String
+  model     String
+  vector    Json
+  createdAt DateTime @default(now())
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId])
+  @@index([provider, model])
+  @@schema("aiverse_jobs")
+}
+
+model PromptStat {
+  promptId      String   @id
+  views         Int      @default(0)
+  copies        Int      @default(0)
+  saves         Int      @default(0)
+  likes         Int      @default(0)
+  shares        Int      @default(0)
+  reports       Int      @default(0)
+  weeklyGrowth  Float    @default(0)
+  lastViewedAt  DateTime?
+  updatedAt     DateTime @updatedAt
+  prompt        Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([copies])
+  @@index([saves])
+  @@index([views])
+  @@index([weeklyGrowth])
+  @@schema("aiverse_jobs")
+}
+
+model PromptEvent {
+  id             String   @id @default(cuid())
+  promptId       String
+  eventType      String
+  visitorKey     String?
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+  prompt         Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, eventType, idempotencyKey])
+  @@index([promptId])
+  @@index([eventType])
+  @@index([visitorKey])
+  @@index([createdAt])
+  @@schema("aiverse_jobs")
+}
+
+model PromptFavorite {
+  id        String   @id @default(cuid())
+  promptId  String
+  userKey   String
+  createdAt DateTime @default(now())
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, userKey])
+  @@index([userKey])
+  @@schema("aiverse_jobs")
+}
+
+model PromptCollection {
+  id          String                   @id @default(cuid())
+  slug        String                   @unique
+  title       String
+  description String?                  @db.Text
+  ownerKey    String?
+  public      Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  prompts     PromptCollectionPrompt[]
+
+  @@index([public])
+  @@index([ownerKey])
+  @@schema("aiverse_jobs")
+}
+
+model PromptCollectionPrompt {
+  collectionId String
+  promptId     String
+  position     Int      @default(0)
+  addedAt      DateTime @default(now())
+  collection   PromptCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  prompt       Prompt           @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, promptId])
+  @@index([promptId])
+  @@schema("aiverse_jobs")
+}
+
+model PromptCrawlLog {
+  id             String   @id @default(cuid())
+  sourceType     String
+  sourceUrl      String
+  status         String
+  promptsFound   Int      @default(0)
+  promptsSaved   Int      @default(0)
+  errorMessage   String?  @db.Text
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([sourceType])
+  @@index([status])
+  @@index([startedAt])
+  @@schema("aiverse_jobs")
+}
