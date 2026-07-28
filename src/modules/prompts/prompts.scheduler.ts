@@ -9,8 +9,9 @@ export class PromptsScheduler implements OnModuleInit {
   constructor(private readonly prompts: PromptsService) {}
 
   async onModuleInit() {
-    const intervalMs = Number(process.env.PROMPT_SYNC_INTERVAL_MS ?? 120_000);
+    const intervalMs = this.resolveIntervalMs();
     const enabled = process.env.PROMPT_SYNC_ENABLED !== 'false';
+    const syncOnStartup = process.env.PROMPT_SYNC_ON_STARTUP === 'true';
 
     if (!enabled) {
       this.logger.warn('Prompt sync scheduler disabled by PROMPT_SYNC_ENABLED=false.');
@@ -18,11 +19,38 @@ export class PromptsScheduler implements OnModuleInit {
     }
 
     this.logger.log(`Prompt sync scheduler enabled: every ${intervalMs}ms.`);
-    await this.syncOnce('startup');
+    if (syncOnStartup) {
+      await this.syncOnce('startup');
+    } else {
+      this.logger.log('Prompt startup sync skipped; enable PROMPT_SYNC_ON_STARTUP=true to run it during boot.');
+    }
 
     setInterval(() => {
       void this.syncOnce('interval');
     }, intervalMs).unref();
+  }
+
+  private resolveIntervalMs() {
+    const fallback = 300_000;
+    const minimum = 60_000;
+    const raw = process.env.PROMPT_SYNC_INTERVAL_MS;
+    const parsed = raw ? Number(raw) : fallback;
+
+    if (!Number.isFinite(parsed)) {
+      this.logger.warn(
+        `Invalid PROMPT_SYNC_INTERVAL_MS="${raw}". Expected milliseconds, for example 300000 for 5 minutes. Falling back to ${fallback}ms.`,
+      );
+      return fallback;
+    }
+
+    if (parsed < minimum) {
+      this.logger.warn(
+        `PROMPT_SYNC_INTERVAL_MS=${parsed} is too low for production. Using minimum ${minimum}ms.`,
+      );
+      return minimum;
+    }
+
+    return parsed;
   }
 
   private async syncOnce(reason: string) {

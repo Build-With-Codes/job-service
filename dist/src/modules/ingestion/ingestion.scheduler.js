@@ -32,6 +32,7 @@ let IngestionScheduler = IngestionScheduler_1 = class IngestionScheduler {
         const providerSyncCron = process.env.PROVIDER_SYNC_CRON ?? '*/3 * * * *';
         const expirationCron = process.env.JOB_EXPIRATION_CRON ?? '0 * * * *';
         const outboxCron = process.env.OUTBOX_CRON ?? '* * * * *';
+        const syncOnStartup = process.env.PROVIDER_SYNC_ON_STARTUP === 'true';
         const providers = (process.env.PROVIDER_SYNC_TYPES ?? 'greenhouse,arbeitnow')
             .split(',')
             .map((provider) => provider.trim())
@@ -39,8 +40,13 @@ let IngestionScheduler = IngestionScheduler_1 = class IngestionScheduler {
         for (const providerType of providers) {
             await this.withTimeout(`register ${providerType} provider sync repeatable job`, this.providerSyncQueue.add(`${providerType}-provider-sync`, { providerType, requestedBy: 'scheduler' }, { repeat: { pattern: providerSyncCron }, jobId: `${providerType}-provider-sync` }));
             this.logger.log(`Registered repeatable provider sync: provider=${providerType} queue=${queue_constants_1.PROVIDER_SYNC_QUEUE} cron="${providerSyncCron}"`);
-            await this.withTimeout(`register immediate ${providerType} provider sync test job`, this.providerSyncQueue.add(`${providerType}-provider-sync-now`, { providerType, requestedBy: 'scheduler' }, { jobId: `${providerType}-provider-sync-now-${Date.now()}`, attempts: 1 }));
-            this.logger.log(`Queued immediate provider sync test job: provider=${providerType} queue=${queue_constants_1.PROVIDER_SYNC_QUEUE}`);
+            if (syncOnStartup) {
+                await this.withTimeout(`register immediate ${providerType} provider sync startup job`, this.providerSyncQueue.add(`${providerType}-provider-sync-now`, { providerType, requestedBy: 'scheduler' }, { jobId: `${providerType}-provider-sync-now-${Date.now()}`, attempts: 1 }));
+                this.logger.log(`Queued immediate provider sync startup job: provider=${providerType} queue=${queue_constants_1.PROVIDER_SYNC_QUEUE}`);
+            }
+            else {
+                this.logger.log(`Skipped immediate provider sync startup job: provider=${providerType}; enable PROVIDER_SYNC_ON_STARTUP=true to run it.`);
+            }
         }
         await this.withTimeout('register job expiration repeatable job', this.expirationQueue.add('job-expiration', { requestedBy: 'scheduler' }, { repeat: { pattern: expirationCron }, jobId: 'job-expiration' }));
         this.logger.log(`Registered repeatable job expiration: queue=${queue_constants_1.JOB_EXPIRATION_QUEUE} cron="${expirationCron}"`);

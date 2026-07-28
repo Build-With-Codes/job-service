@@ -6,5 +6,6 @@ export declare class PromptsScheduler implements OnModuleInit {
     private running;
     constructor(prompts: PromptsService);
     onModuleInit(): Promise<void>;
+    private resolveIntervalMs;
     private syncOnce;
 }
