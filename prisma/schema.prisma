@@ -77,6 +77,42 @@ model Company {
   @@schema("aiverse_jobs")
 }
 
+model SeoPage {
+  id                 String   @id @default(cuid())
+  type               String
+  slug               String
+  title              String
+  description        String   @db.Text
+  keywords           String[] @default([])
+  canonicalUrl       String?
+  ogTitle            String?
+  ogDescription      String?  @db.Text
+  ogImage            String?
+  ogType             String   @default("website")
+  twitterTitle       String?
+  twitterDescription String?  @db.Text
+  twitterCard        String   @default("summary_large_image")
+  alternates         Json?
+  jsonLd             Json?
+  breadcrumb         Json?
+  robotsIndex        Boolean  @default(true)
+  robotsFollow       Boolean  @default(true)
+  robotsArchive      Boolean  @default(true)
+  robotsImageIndex   Boolean  @default(true)
+  seoVersion         Int      @default(1)
+  seoGeneratedAt     DateTime?
+  seoGeneratedBy     String?
+  seoScore           Int?
+  qualityScore       Int?
+  needsReview        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([type, slug])
+  @@index([type])
+  @@schema("aiverse_jobs")
+}
+
 model Job {
   id                 String        @id @default(cuid())
   companyId          String
@@ -244,6 +280,11 @@ model Prompt {
   variables         Json?
   exampleInput      Json?
   exampleOutput     String?            @db.Text
+  seoTitle          String?
+  seoDescription    String?            @db.Text
+  seoKeywords       String[]           @default([])
+  canonicalUrl      String?
+  ogImage           String?
   qualityScore      Int                @default(0)
   readabilityScore  Int                @default(0)
   structureScore    Int                @default(0)

@@ -9,6 +9,7 @@ import { HealthModule } from './modules/health/health.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { SearchModule } from './modules/search/search.module';
+import { SeoModule } from './modules/seo/seo.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PromptsModule } from './modules/prompts/prompts.module';
 
@@ -23,6 +24,7 @@ import { PromptsModule } from './modules/prompts/prompts.module';
     JobsModule,
     CompaniesModule,
     SearchModule,
+    SeoModule,
     PromptsModule,
     AdminModule,
   ],

@@ -6,7 +6,7 @@ export declare class PromptsService {
     private readonly logger;
     constructor(prisma: PrismaService);
     search(input: SearchPromptsDto): Promise<{
-        data: (({
+        data: ({
             sources: {
                 id: string;
                 sourceUrl: string | null;
@@ -58,6 +58,9 @@ export declare class PromptsService {
             slug: string;
             description: string;
             title: string;
+            canonicalUrl: string | null;
+            ogImage: string | null;
+            qualityScore: number;
             promptType: string;
             difficulty: string;
             authorName: string | null;
@@ -66,7 +69,9 @@ export declare class PromptsService {
             variables: Prisma.JsonValue | null;
             exampleInput: Prisma.JsonValue | null;
             exampleOutput: string | null;
-            qualityScore: number;
+            seoTitle: string | null;
+            seoDescription: string | null;
+            seoKeywords: string[];
             readabilityScore: number;
             structureScore: number;
             variablesScore: number;
@@ -75,7 +80,15 @@ export declare class PromptsService {
             trendingScore: number;
             publishedAt: Date;
             lastUpdatedAt: Date;
-        }) | undefined)[];
+        } & {
+            seo: {
+                title: string;
+                description: string;
+                keywords: string[];
+                canonical: string;
+                ogImage: string;
+            };
+        })[];
         meta: {
             page: number;
             limit: number;
@@ -136,6 +149,9 @@ export declare class PromptsService {
         slug: string;
         description: string;
         title: string;
+        canonicalUrl: string | null;
+        ogImage: string | null;
+        qualityScore: number;
         promptType: string;
         difficulty: string;
         authorName: string | null;
@@ -144,7 +160,9 @@ export declare class PromptsService {
         variables: Prisma.JsonValue | null;
         exampleInput: Prisma.JsonValue | null;
         exampleOutput: string | null;
-        qualityScore: number;
+        seoTitle: string | null;
+        seoDescription: string | null;
+        seoKeywords: string[];
         readabilityScore: number;
         structureScore: number;
         variablesScore: number;
@@ -153,6 +171,14 @@ export declare class PromptsService {
         trendingScore: number;
         publishedAt: Date;
         lastUpdatedAt: Date;
+    } & {
+        seo: {
+            title: string;
+            description: string;
+            keywords: string[];
+            canonical: string;
+            ogImage: string;
+        };
     }) | null>;
     getSaved(userKey: string): Promise<({
         sources: {
@@ -206,6 +232,9 @@ export declare class PromptsService {
         slug: string;
         description: string;
         title: string;
+        canonicalUrl: string | null;
+        ogImage: string | null;
+        qualityScore: number;
         promptType: string;
         difficulty: string;
         authorName: string | null;
@@ -214,7 +243,9 @@ export declare class PromptsService {
         variables: Prisma.JsonValue | null;
         exampleInput: Prisma.JsonValue | null;
         exampleOutput: string | null;
-        qualityScore: number;
+        seoTitle: string | null;
+        seoDescription: string | null;
+        seoKeywords: string[];
         readabilityScore: number;
         structureScore: number;
         variablesScore: number;
@@ -223,6 +254,14 @@ export declare class PromptsService {
         trendingScore: number;
         publishedAt: Date;
         lastUpdatedAt: Date;
+    } & {
+        seo: {
+            title: string;
+            description: string;
+            keywords: string[];
+            canonical: string;
+            ogImage: string;
+        };
     })[]>;
     savePrompt(userKey: string, promptId: string): Promise<{
         saved: boolean;
@@ -307,6 +346,8 @@ export declare class PromptsService {
     private clampPercent;
     private defaultEventKey;
     private upsertPrompt;
+    private buildPromptSeo;
+    private withPromptSeo;
     private stringValue;
     private stringArray;
     private numberValue;

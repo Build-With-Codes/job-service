@@ -4,7 +4,7 @@ export declare class PromptsController {
     private readonly prompts;
     constructor(prompts: PromptsService);
     search(query: SearchPromptsDto): Promise<{
-        data: (({
+        data: ({
             sources: {
                 id: string;
                 sourceUrl: string | null;
@@ -56,6 +56,9 @@ export declare class PromptsController {
             slug: string;
             description: string;
             title: string;
+            canonicalUrl: string | null;
+            ogImage: string | null;
+            qualityScore: number;
             promptType: string;
             difficulty: string;
             authorName: string | null;
@@ -64,7 +67,9 @@ export declare class PromptsController {
             variables: import("@prisma/client/runtime/client").JsonValue | null;
             exampleInput: import("@prisma/client/runtime/client").JsonValue | null;
             exampleOutput: string | null;
-            qualityScore: number;
+            seoTitle: string | null;
+            seoDescription: string | null;
+            seoKeywords: string[];
             readabilityScore: number;
             structureScore: number;
             variablesScore: number;
@@ -73,7 +78,15 @@ export declare class PromptsController {
             trendingScore: number;
             publishedAt: Date;
             lastUpdatedAt: Date;
-        }) | undefined)[];
+        } & {
+            seo: {
+                title: string;
+                description: string;
+                keywords: string[];
+                canonical: string;
+                ogImage: string;
+            };
+        })[];
         meta: {
             page: number;
             limit: number;
@@ -150,6 +163,9 @@ export declare class PromptsController {
             slug: string;
             description: string;
             title: string;
+            canonicalUrl: string | null;
+            ogImage: string | null;
+            qualityScore: number;
             promptType: string;
             difficulty: string;
             authorName: string | null;
@@ -158,7 +174,9 @@ export declare class PromptsController {
             variables: import("@prisma/client/runtime/client").JsonValue | null;
             exampleInput: import("@prisma/client/runtime/client").JsonValue | null;
             exampleOutput: string | null;
-            qualityScore: number;
+            seoTitle: string | null;
+            seoDescription: string | null;
+            seoKeywords: string[];
             readabilityScore: number;
             structureScore: number;
             variablesScore: number;
@@ -167,6 +185,14 @@ export declare class PromptsController {
             trendingScore: number;
             publishedAt: Date;
             lastUpdatedAt: Date;
+        } & {
+            seo: {
+                title: string;
+                description: string;
+                keywords: string[];
+                canonical: string;
+                ogImage: string;
+            };
         })[];
     }>;
     save(headers: Record<string, string | string[] | undefined>, body: {
@@ -264,6 +290,9 @@ export declare class PromptsController {
         slug: string;
         description: string;
         title: string;
+        canonicalUrl: string | null;
+        ogImage: string | null;
+        qualityScore: number;
         promptType: string;
         difficulty: string;
         authorName: string | null;
@@ -272,7 +301,9 @@ export declare class PromptsController {
         variables: import("@prisma/client/runtime/client").JsonValue | null;
         exampleInput: import("@prisma/client/runtime/client").JsonValue | null;
         exampleOutput: string | null;
-        qualityScore: number;
+        seoTitle: string | null;
+        seoDescription: string | null;
+        seoKeywords: string[];
         readabilityScore: number;
         structureScore: number;
         variablesScore: number;
@@ -281,5 +312,13 @@ export declare class PromptsController {
         trendingScore: number;
         publishedAt: Date;
         lastUpdatedAt: Date;
+    } & {
+        seo: {
+            title: string;
+            description: string;
+            keywords: string[];
+            canonical: string;
+            ogImage: string;
+        };
     }) | null>;
 }

@@ -18,6 +18,7 @@ const health_module_1 = require("./modules/health/health.module");
 const jobs_module_1 = require("./modules/jobs/jobs.module");
 const companies_module_1 = require("./modules/companies/companies.module");
 const search_module_1 = require("./modules/search/search.module");
+const seo_module_1 = require("./modules/seo/seo.module");
 const admin_module_1 = require("./modules/admin/admin.module");
 const prompts_module_1 = require("./modules/prompts/prompts.module");
 let AppModule = class AppModule {
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             jobs_module_1.JobsModule,
             companies_module_1.CompaniesModule,
             search_module_1.SearchModule,
+            seo_module_1.SeoModule,
             prompts_module_1.PromptsModule,
             admin_module_1.AdminModule,
         ],

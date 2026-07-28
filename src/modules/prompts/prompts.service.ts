@@ -46,6 +46,11 @@ type AiProcessedPrompt = {
   variables?: Record<string, string>;
   exampleInput?: Record<string, string>;
   exampleOutput?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string[];
+  canonicalUrl?: string;
+  ogImage?: string;
 };
 
 @Injectable()
@@ -74,7 +79,7 @@ export class PromptsService {
       }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+    return { data: data.map((prompt) => this.withPromptSeo(prompt)), meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
   }
 
   private async hybridSearch(
@@ -153,7 +158,10 @@ export class PromptsService {
       ? await this.prisma.db.prompt.findMany({ where: { id: { in: ids } }, include: promptInclude })
       : [];
     const byId = new Map(prompts.map((prompt) => [prompt.id, prompt]));
-    const data = ids.map((id) => byId.get(id)).filter(Boolean);
+    const data = ids
+      .map((id) => byId.get(id))
+      .filter((prompt): prompt is NonNullable<typeof prompt> => Boolean(prompt))
+      .map((prompt) => this.withPromptSeo(prompt));
 
     return {
       data,
@@ -167,10 +175,11 @@ export class PromptsService {
   }
 
   async findBySlug(slug: string) {
-    return this.prisma.db.prompt.findUnique({
+    const prompt = await this.prisma.db.prompt.findUnique({
       where: { slug },
       include: promptInclude,
     });
+    return prompt ? this.withPromptSeo(prompt) : null;
   }
 
   async getSaved(userKey: string) {
@@ -179,7 +188,7 @@ export class PromptsService {
       include: { prompt: { include: promptInclude } },
       orderBy: { createdAt: 'desc' },
     });
-    return saved.map((item) => item.prompt);
+    return saved.map((item) => this.withPromptSeo(item.prompt));
   }
 
   async savePrompt(userKey: string, promptId: string) {
@@ -934,8 +943,8 @@ export class PromptsService {
     const processed = await this.callOpenRouterJson<AiProcessedPrompt>(
       [
         'Return ONLY valid JSON. You clean and classify AI prompts for a production prompt library.',
-        'Schema: {"title":"max 12 words","description":"max 45 words","prompt":"clean full prompt","promptType":"System Prompt|User Prompt|Template|Workflow|Agent|JSON|Image Prompt|Few-shot","difficulty":"Beginner|Intermediate|Advanced","categories":["1-3 category names"],"tags":["4-8 tags"],"supportedModels":["1-5 model/provider names"],"qualityScore":number 1-100,"readabilityScore":number 1-100,"structureScore":number 1-100,"variablesScore":number 1-100,"reusabilityScore":number 1-100,"featured":boolean,"trendingScore":number 0-100,"variables":{},"exampleInput":{},"exampleOutput":"optional short example"}',
-        'Rules: preserve useful prompt instructions, remove boilerplate/source navigation text, infer categories and difficulty, score honestly, do not hallucinate unsupported claims.',
+        'Schema: {"title":"max 12 words","description":"max 45 words","prompt":"clean full prompt","promptType":"System Prompt|User Prompt|Template|Workflow|Agent|JSON|Image Prompt|Few-shot","difficulty":"Beginner|Intermediate|Advanced","categories":["1-3 category names"],"tags":["4-8 tags"],"supportedModels":["1-5 model/provider names"],"qualityScore":number 1-100,"readabilityScore":number 1-100,"structureScore":number 1-100,"variablesScore":number 1-100,"reusabilityScore":number 1-100,"featured":boolean,"trendingScore":number 0-100,"variables":{},"exampleInput":{},"exampleOutput":"optional short example","seoTitle":"50-60 chars","seoDescription":"145-160 chars","seoKeywords":["5-10 search phrases"]}',
+        'Rules: preserve useful prompt instructions, remove boilerplate/source navigation text, infer categories and difficulty, score honestly, generate SEO from the prompt content only, do not hallucinate unsupported claims.',
       ].join('\n'),
       {
         source: { name: source.name, type: source.type, priority: source.priority, url: source.url },
@@ -975,12 +984,31 @@ export class PromptsService {
       variables: processed.variables ?? fallback.variables,
       exampleInput: processed.exampleInput ?? fallback.exampleInput,
       exampleOutput: processed.exampleOutput ?? fallback.exampleOutput,
+      seoTitle: processed.seoTitle ?? fallback.seoTitle,
+      seoDescription: processed.seoDescription ?? fallback.seoDescription,
+      seoKeywords: Array.isArray(processed.seoKeywords) && processed.seoKeywords.length
+        ? processed.seoKeywords
+        : fallback.seoKeywords,
     };
   }
 
   private buildFallbackProcessedPrompt(raw: PromptCandidate, source: PromptSourceConfig): PromptCandidate {
     const title = this.stringValue(raw.title);
     const promptText = this.stringValue(raw.prompt ?? raw.content ?? raw.template);
+    const fallbackSeo = this.buildPromptSeo({
+      title,
+      description: this.stringValue(raw.description) || promptText.slice(0, 220),
+      slug: this.slugify(this.stringValue(raw.slug) || `${source.name}-${title}`),
+      promptType: this.stringValue(raw.promptType ?? raw.type) || 'Template',
+      categories: this.stringArray(raw.categories ?? raw.category).length
+        ? this.stringArray(raw.categories ?? raw.category)
+        : ['Prompt Engineering'],
+      tags: this.stringArray(raw.tags).length ? this.stringArray(raw.tags) : [source.type, source.name],
+      supportedModels: this.stringArray(raw.supportedModels ?? raw.models).length
+        ? this.stringArray(raw.supportedModels ?? raw.models)
+        : this.modelsForSource(source.name),
+    });
+
     return {
       ...raw,
       title,
@@ -1002,6 +1030,13 @@ export class PromptsService {
       reusabilityScore: this.numberValue(raw.reusabilityScore, 78),
       featured: Boolean(raw.featured) || source.priority >= 5,
       trendingScore: this.numberValue(raw.trendingScore, source.priority),
+      seoTitle: this.stringValue(raw.seoTitle) || fallbackSeo.title,
+      seoDescription: this.stringValue(raw.seoDescription) || fallbackSeo.description,
+      seoKeywords: this.stringArray(raw.seoKeywords ?? raw.keywords).length
+        ? this.stringArray(raw.seoKeywords ?? raw.keywords)
+        : fallbackSeo.keywords,
+      canonicalUrl: this.stringValue(raw.canonicalUrl) || fallbackSeo.canonical,
+      ogImage: this.stringValue(raw.ogImage) || fallbackSeo.ogImage,
     };
   }
 
@@ -1096,6 +1131,20 @@ export class PromptsService {
     const tags = this.stringArray(raw.tags).map((name) => ({ name, slug: this.slugify(name) }));
     const supportedModels = this.stringArray(raw.supportedModels ?? raw.models);
     const contentHash = createHash('sha256').update(`${title}:${promptText}`).digest('hex');
+    const seo = this.buildPromptSeo({
+      title,
+      description: this.stringValue(raw.description) || promptText.slice(0, 220),
+      slug,
+      promptType: this.stringValue(raw.promptType ?? raw.type) || 'Template',
+      categories: categories.map((category) => category.name),
+      tags: tags.map((tag) => tag.name),
+      supportedModels,
+      seoTitle: this.stringValue(raw.seoTitle),
+      seoDescription: this.stringValue(raw.seoDescription),
+      seoKeywords: this.stringArray(raw.seoKeywords ?? raw.keywords),
+      canonicalUrl: this.stringValue(raw.canonicalUrl),
+      ogImage: this.stringValue(raw.ogImage),
+    });
 
     await this.prisma.db.prompt.upsert({
       where: { slug },
@@ -1113,6 +1162,11 @@ export class PromptsService {
         variables: this.objectValue(raw.variables),
         exampleInput: this.objectValue(raw.exampleInput),
         exampleOutput: this.stringValue(raw.exampleOutput),
+        seoTitle: seo.title,
+        seoDescription: seo.description,
+        seoKeywords: seo.keywords,
+        canonicalUrl: seo.canonical,
+        ogImage: seo.ogImage,
         qualityScore: this.numberValue(raw.qualityScore, 80),
         readabilityScore: this.numberValue(raw.readabilityScore, 80),
         structureScore: this.numberValue(raw.structureScore, 80),
@@ -1139,6 +1193,11 @@ export class PromptsService {
         variables: this.objectValue(raw.variables) ?? Prisma.JsonNull,
         exampleInput: this.objectValue(raw.exampleInput) ?? Prisma.JsonNull,
         exampleOutput: this.stringValue(raw.exampleOutput),
+        seoTitle: seo.title,
+        seoDescription: seo.description,
+        seoKeywords: seo.keywords,
+        canonicalUrl: seo.canonical,
+        ogImage: seo.ogImage,
         qualityScore: this.numberValue(raw.qualityScore, 80),
         readabilityScore: this.numberValue(raw.readabilityScore, 80),
         structureScore: this.numberValue(raw.structureScore, 80),
@@ -1150,6 +1209,84 @@ export class PromptsService {
       },
     });
     return true;
+  }
+
+  private buildPromptSeo(input: {
+    title: string;
+    description: string;
+    slug: string;
+    promptType: string;
+    categories: string[];
+    tags: string[];
+    supportedModels: string[];
+    seoTitle?: string;
+    seoDescription?: string;
+    seoKeywords?: string[];
+    canonicalUrl?: string;
+    ogImage?: string;
+  }) {
+    const siteUrl = process.env.PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://aiverseworld.com';
+    const title = this.truncate(
+      input.seoTitle || `${input.title} Prompt | AI Prompt Library`,
+      60,
+    ).replace(/\.\.\.$/, '');
+    const description = this.truncate(
+      input.seoDescription || `${input.description} Copy, save, and adapt this ${input.promptType.toLowerCase()} for ${input.supportedModels.slice(0, 3).join(', ') || 'leading AI models'}.`,
+      160,
+    ).replace(/\.\.\.$/, '');
+    const keywords = [
+      ...(input.seoKeywords ?? []),
+      input.title,
+      input.promptType,
+      ...input.categories,
+      ...input.tags,
+      ...input.supportedModels,
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .filter((value, index, array) => array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
+      .slice(0, 12);
+
+    return {
+      title,
+      description,
+      keywords,
+      canonical: input.canonicalUrl || `${siteUrl}/prompts/${input.slug}`,
+      ogImage: input.ogImage || `${siteUrl}/api/og/prompts/${input.slug}`,
+    };
+  }
+
+  private withPromptSeo<T extends {
+    title: string;
+    slug: string;
+    description: string;
+    promptType: string;
+    categories?: Array<{ name: string }>;
+    tags?: Array<{ name: string }>;
+    supportedModels: string[];
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+    seoKeywords?: string[];
+    canonicalUrl?: string | null;
+    ogImage?: string | null;
+  }>(prompt: T) {
+    return {
+      ...prompt,
+      seo: this.buildPromptSeo({
+        title: prompt.title,
+        description: prompt.description,
+        slug: prompt.slug,
+        promptType: prompt.promptType,
+        categories: prompt.categories?.map((category) => category.name) ?? [],
+        tags: prompt.tags?.map((tag) => tag.name) ?? [],
+        supportedModels: prompt.supportedModels,
+        seoTitle: prompt.seoTitle ?? undefined,
+        seoDescription: prompt.seoDescription ?? undefined,
+        seoKeywords: prompt.seoKeywords ?? [],
+        canonicalUrl: prompt.canonicalUrl ?? undefined,
+        ogImage: prompt.ogImage ?? undefined,
+      }),
+    };
   }
 
   private stringValue(value: unknown) {
