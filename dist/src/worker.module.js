@@ -19,24 +19,29 @@ const ingestion_module_1 = require("./modules/ingestion/ingestion.module");
 const ingestion_worker_1 = require("./modules/ingestion/ingestion.worker");
 const outbox_module_1 = require("./modules/outbox/outbox.module");
 const search_module_1 = require("./modules/search/search.module");
+const queueWorkersEnabled = process.env.QUEUE_WORKERS_ENABLED !== 'false';
+const workerImports = queueWorkersEnabled
+    ? [
+        configuration_module_1.ConfigurationModule,
+        logger_module_1.StructuredLoggerModule,
+        prisma_module_1.PrismaModule,
+        queue_module_1.QueueModule,
+        providers_module_1.ProvidersModule,
+        normalization_module_1.NormalizationModule,
+        deduplication_module_1.DeduplicationModule,
+        search_module_1.SearchModule,
+        ingestion_module_1.IngestionModule,
+        outbox_module_1.OutboxModule,
+    ]
+    : [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule];
+const workerProviders = queueWorkersEnabled ? [ingestion_worker_1.ProviderSyncWorker, ingestion_worker_1.JobExpirationWorker] : [];
 let WorkerModule = class WorkerModule {
 };
 exports.WorkerModule = WorkerModule;
 exports.WorkerModule = WorkerModule = __decorate([
     (0, common_1.Module)({
-        imports: [
-            configuration_module_1.ConfigurationModule,
-            logger_module_1.StructuredLoggerModule,
-            prisma_module_1.PrismaModule,
-            queue_module_1.QueueModule,
-            providers_module_1.ProvidersModule,
-            normalization_module_1.NormalizationModule,
-            deduplication_module_1.DeduplicationModule,
-            search_module_1.SearchModule,
-            ingestion_module_1.IngestionModule,
-            outbox_module_1.OutboxModule,
-        ],
-        providers: [ingestion_worker_1.ProviderSyncWorker, ingestion_worker_1.JobExpirationWorker],
+        imports: workerImports,
+        providers: workerProviders,
     })
 ], WorkerModule);
 //# sourceMappingURL=worker.module.js.map

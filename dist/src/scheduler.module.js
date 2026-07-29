@@ -14,13 +14,20 @@ const queue_module_1 = require("./queues/queue.module");
 const ingestion_scheduler_1 = require("./modules/ingestion/ingestion.scheduler");
 const prompts_module_1 = require("./modules/prompts/prompts.module");
 const prompts_scheduler_1 = require("./modules/prompts/prompts.scheduler");
+const bullSchedulerEnabled = process.env.BULL_SCHEDULER_ENABLED !== 'false';
+const schedulerImports = bullSchedulerEnabled
+    ? [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule, queue_module_1.QueueModule, prompts_module_1.PromptsModule]
+    : [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule, prompts_module_1.PromptsModule];
+const schedulerProviders = bullSchedulerEnabled
+    ? [ingestion_scheduler_1.IngestionScheduler, prompts_scheduler_1.PromptsScheduler]
+    : [prompts_scheduler_1.PromptsScheduler];
 let SchedulerModule = class SchedulerModule {
 };
 exports.SchedulerModule = SchedulerModule;
 exports.SchedulerModule = SchedulerModule = __decorate([
     (0, common_1.Module)({
-        imports: [configuration_module_1.ConfigurationModule, logger_module_1.StructuredLoggerModule, queue_module_1.QueueModule, prompts_module_1.PromptsModule],
-        providers: [ingestion_scheduler_1.IngestionScheduler, prompts_scheduler_1.PromptsScheduler],
+        imports: schedulerImports,
+        providers: schedulerProviders,
     })
 ], SchedulerModule);
 //# sourceMappingURL=scheduler.module.js.map

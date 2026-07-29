@@ -6,8 +6,16 @@ import { IngestionScheduler } from './modules/ingestion/ingestion.scheduler';
 import { PromptsModule } from './modules/prompts/prompts.module';
 import { PromptsScheduler } from './modules/prompts/prompts.scheduler';
 
+const bullSchedulerEnabled = process.env.BULL_SCHEDULER_ENABLED !== 'false';
+const schedulerImports = bullSchedulerEnabled
+  ? [ConfigurationModule, StructuredLoggerModule, QueueModule, PromptsModule]
+  : [ConfigurationModule, StructuredLoggerModule, PromptsModule];
+const schedulerProviders = bullSchedulerEnabled
+  ? [IngestionScheduler, PromptsScheduler]
+  : [PromptsScheduler];
+
 @Module({
-  imports: [ConfigurationModule, StructuredLoggerModule, QueueModule, PromptsModule],
-  providers: [IngestionScheduler, PromptsScheduler],
+  imports: schedulerImports,
+  providers: schedulerProviders,
 })
 export class SchedulerModule {}

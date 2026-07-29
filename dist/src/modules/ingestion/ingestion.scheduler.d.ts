@@ -9,4 +9,7 @@ export declare class IngestionScheduler implements OnModuleInit {
     constructor(providerSyncQueue: Queue<ProviderSyncJob>, expirationQueue: Queue<JobExpirationJob>, outboxQueue: Queue<OutboxProcessingJob>);
     onModuleInit(): Promise<void>;
     private withTimeout;
+    private isRedisRequestLimitError;
+    private isQueueOperationTimeoutError;
+    private resolveQueueOperationTimeoutMs;
 }

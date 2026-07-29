@@ -11,19 +11,25 @@ import { JobExpirationWorker, ProviderSyncWorker } from './modules/ingestion/ing
 import { OutboxModule } from './modules/outbox/outbox.module';
 import { SearchModule } from './modules/search/search.module';
 
+const queueWorkersEnabled = process.env.QUEUE_WORKERS_ENABLED !== 'false';
+const workerImports = queueWorkersEnabled
+  ? [
+      ConfigurationModule,
+      StructuredLoggerModule,
+      PrismaModule,
+      QueueModule,
+      ProvidersModule,
+      NormalizationModule,
+      DeduplicationModule,
+      SearchModule,
+      IngestionModule,
+      OutboxModule,
+    ]
+  : [ConfigurationModule, StructuredLoggerModule];
+const workerProviders = queueWorkersEnabled ? [ProviderSyncWorker, JobExpirationWorker] : [];
+
 @Module({
-  imports: [
-    ConfigurationModule,
-    StructuredLoggerModule,
-    PrismaModule,
-    QueueModule,
-    ProvidersModule,
-    NormalizationModule,
-    DeduplicationModule,
-    SearchModule,
-    IngestionModule,
-    OutboxModule,
-  ],
-  providers: [ProviderSyncWorker, JobExpirationWorker],
+  imports: workerImports,
+  providers: workerProviders,
 })
 export class WorkerModule {}

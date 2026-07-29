@@ -89,6 +89,34 @@ x-admin-api-key: <ADMIN_API_KEY>
 
 The scheduler only enqueues repeatable work. The worker performs provider fetches, normalization, validation, deduplication, transactions, outbox creation, search indexing, and expiration processing.
 
+### Redis quota controls
+
+If Upstash Redis returns `ERR max requests limit exceeded`, pause BullMQ traffic until the quota resets or the Redis plan is upgraded:
+
+```text
+BULL_SCHEDULER_ENABLED=false
+QUEUE_WORKERS_ENABLED=false
+PROMPT_SYNC_ENABLED=false
+```
+
+For normal production operation, keep the services enabled but tune cadence with:
+
+```text
+PROVIDER_SYNC_CRON=*/15 * * * *
+OUTBOX_CRON=*/5 * * * *
+JOB_EXPIRATION_CRON=0 * * * *
+PROVIDER_SYNC_ON_STARTUP=false
+PROMPT_SYNC_ON_STARTUP=false
+```
+
+Individual repeatable jobs can also be disabled with `PROVIDER_SYNC_SCHEDULER_ENABLED=false`, `JOB_EXPIRATION_SCHEDULER_ENABLED=false`, or `OUTBOX_SCHEDULER_ENABLED=false`.
+
+If Redis is slow to respond during startup, tune the BullMQ registration timeout:
+
+```text
+QUEUE_OPERATION_TIMEOUT_MS=30000
+```
+
 ## Provider Adapter
 
 The first implemented provider is Greenhouse. It requires:
