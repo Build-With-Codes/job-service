@@ -6,6 +6,12 @@ const { spawn } = require('node:child_process');
 
 const children = new Map();
 const port = Number(process.env.PORT ?? 3002);
+const criticalRuntimes = new Set(
+  (process.env.CRITICAL_RUNTIMES ?? 'api')
+    .split(',')
+    .map((runtime) => runtime.trim())
+    .filter(Boolean),
+);
 
 function log(label, message) {
   console.log(`[${label}] ${message}`);
@@ -101,7 +107,7 @@ function spawnRuntime(label, command, args) {
   child.on('exit', (code, signal) => {
     children.delete(label);
     console.log(`[${label}] exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}`);
-    if (code !== 0 && !stopping) {
+    if (code !== 0 && criticalRuntimes.has(label) && !stopping) {
       stopAll(code ?? 1);
     }
   });
@@ -147,7 +153,15 @@ temporaryServer.listen(port, '0.0.0.0', async () => {
   temporaryServer.close(() => {
     log('start-all', 'temporary startup server closed; launching API, worker, and scheduler');
     spawnRuntime('api', process.execPath, ['dist/src/api.js']);
-    spawnRuntime('worker', process.execPath, ['dist/src/worker.js']);
-    spawnRuntime('scheduler', process.execPath, ['dist/src/scheduler.js']);
+    if (process.env.QUEUE_WORKERS_ENABLED === 'false') {
+      log('worker', 'skipped because QUEUE_WORKERS_ENABLED=false');
+    } else {
+      spawnRuntime('worker', process.execPath, ['dist/src/worker.js']);
+    }
+    if (process.env.BULL_SCHEDULER_ENABLED === 'false') {
+      log('scheduler', 'skipped because BULL_SCHEDULER_ENABLED=false');
+    } else {
+      spawnRuntime('scheduler', process.execPath, ['dist/src/scheduler.js']);
+    }
   });
 });

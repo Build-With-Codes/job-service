@@ -117,6 +117,8 @@ If Redis is slow to respond during startup, tune the BullMQ registration timeout
 QUEUE_OPERATION_TIMEOUT_MS=30000
 ```
 
+`scripts/start-all.js` treats only the API runtime as critical by default, so worker/scheduler Redis failures do not take down the public API. Override with `CRITICAL_RUNTIMES=api,worker,scheduler` if every runtime should be fatal.
+
 ## Provider Adapter
 
 The first implemented provider is Greenhouse. It requires:

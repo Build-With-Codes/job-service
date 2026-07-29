@@ -85,11 +85,19 @@ async function main() {
       process.exit(code ?? 1);
     }
 
-    const children = [
-      run('api', ['run', 'dev:api']),
-      run('worker', ['run', 'dev:worker']),
-      run('scheduler', ['run', 'dev:scheduler']),
-    ];
+    const children = [run('api', ['run', 'dev:api'])];
+
+    if (process.env.QUEUE_WORKERS_ENABLED === 'false') {
+      console.log('[worker] skipped because QUEUE_WORKERS_ENABLED=false');
+    } else {
+      children.push(run('worker', ['run', 'dev:worker']));
+    }
+
+    if (process.env.BULL_SCHEDULER_ENABLED === 'false') {
+      console.log('[scheduler] skipped because BULL_SCHEDULER_ENABLED=false');
+    } else {
+      children.push(run('scheduler', ['run', 'dev:scheduler']));
+    }
 
     const stop = () => {
       for (const child of children) {
