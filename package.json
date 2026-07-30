@@ -6,6 +6,7 @@
   "scripts": {
     "build": "npm run prisma:generate && nest build",
     "start": "node scripts/start-render.js",
+    "start:web": "node scripts/start-render.js",
     "start:api": "npm run prisma:migrate:startup && node dist/src/api.js",
     "start:api:allow-unreachable": "node scripts/deploy-migrations.js --allow-unreachable && node dist/src/api.js",
     "start:worker": "npm run prisma:migrate:startup && node dist/src/worker.js",
@@ -16,6 +17,8 @@
     "start:dev:scheduler": "ts-node -r tsconfig-paths/register src/scheduler.ts",
     "start:dev:all": "node scripts/start-dev-all.js",
     "start:all": "node scripts/start-all.js",
+    "start:background": "node scripts/start-background.js",
+    "start:hr:workers": "node scripts/start-background.js",
     "dev:api": "ts-node -r tsconfig-paths/register src/api.ts",
     "dev:worker": "ts-node -r tsconfig-paths/register src/worker.ts",
     "dev:scheduler": "ts-node -r tsconfig-paths/register src/scheduler.ts",

@@ -43,6 +43,26 @@ npm run start:worker
 npm run start:scheduler
 ```
 
+Production commands:
+
+```powershell
+npm start
+```
+
+Starts the web/API runtime only. Use this for the Render web service, especially on 512MB instances.
+
+```powershell
+npm run start:background
+```
+
+Starts only the background worker and scheduler. Use this for a separate Render background worker service. Alias: `npm run start:hr:workers`.
+
+```powershell
+npm run start:all
+```
+
+Starts API, worker, and scheduler in one process supervisor. Use this only on a larger instance or when you explicitly want all runtimes together.
+
 `start`, `start:api`, `start:worker`, `start:prod`, `start:dev`, and `start:dev:worker` run `prisma:migrate:startup` first, matching the AiverseWorld backend startup pattern. The scheduler only needs Redis and does not run migrations because it only enqueues work.
 
 ## API
